@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<!-- TNTBack 2019  -->
+<html manifest="cache.appcache">
+  <head>
+    <base target="_blank">
+    <title>TNTBack</title>
+    <meta charset="UTF-8">
+    <meta name="description" content="Una lista con ricerca delle releases del TNTForum e i relativi link alla WayBackMachine">
+    <meta name="keywords" content="TNT,Forum,Village,TNTVillage,Scambioetico,scambio,etico,backup,waybackmachine,wayback,archive,torrent,search,ricerca">
+    <link rel="icon" type="image/png" href="icon.png" />
+    <style>
+      td,th{
+        border: 1px solid black;
+        padding: 3px;
+        min-width: 100px;
+      }
+      table{
+        border-collapse: collapse;
+      }
+      tr:hover{
+        background-color: #ff9;
+      }
+      .center{
+        text-align:center;
+      }
+      .small{
+        min-width:50px;
+      }
+    </style>
+    <script>
+      var result,db;
+      var json = null;
+      function comparable(s){
+        return s.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f ]/g, "");
+      }
+      function header(){
+        return '<tr><th>Data</th><th class="small">Categoria</th><th>Autore</th><th class="small">Magnet</th><th>Titolo</th><th>Descrizione</th><th>Dimensione</th></tr>';
+      }
+      function categoria(i){
+        return '<img src="icon/icon'+i+'.gif">';
+      }
+      function data(d){
+        return d[8]+d[9]+'/'+d[5]+d[6]+'/'+d[0]+d[1]+d[2]+d[3];
+      }
+      function dimensione(d){
+        d/=1024*1024;
+        if(d< 1024)
+          return Math.round(d*100)/100+' MiB';
+        return (Math.round(d*100/1024)/100)+' GiB';
+      }
+      function magnet(h){
+        return 'magnet:?xt=urn:btih:'+h+'&tr=http://tracker.tntvillage.scambioetico.org:2710/announce&tr=udp://tracker.tntvillage.scambioetico.org:2710/announce&tr=udp://tracker.coppersurfer.tk:6969/announce&tr=udp://tracker.leechers-paradise.org:6969/announce&tr=udp://IPv6.leechers-paradise.org:6969/announce&tr=udp://tracker.internetwarriors.net:1337/announce&tr=udp://tracker.tiny-vps.com:6969/announce&tr=udp://tracker.mg64.net:2710/announce&tr=udp://tracker.openbittorrent.com:80/announce';
+      }
+      function url(t){
+        return 'https://web.archive.org/web/http://forum.tntvillage.scambioetico.org/index.php?showtopic='+t;
+      }
+      function line(l){
+        return '<tr><td>'+data(l[0])+'</td><td class="small center">'+categoria(l[6])+'</td><td>'+l[2]+'</td><td class="center small"><a href="'+magnet(l[7])+'">∩</a></td><td><a href="'+url(l[1])+'">'+l[3]+'</a></td><td>'+l[4]+'</td><td>'+dimensione(l[5])+'</td></tr>';
+      }
+      function append(h){
+        result.innerHTML+=h;
+      }
+      function loadJSON(success){
+        if (json!=null)
+          return success(json);
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function(){
+          if (xhr.readyState === XMLHttpRequest.DONE)
+            if (xhr.status !== 200)
+              console.error('Non trovo il dump');
+            else if (success){
+              json = JSON.parse(xhr.response);
+              success(json);
+            }
+        };
+        xhr.open("GET", 'dump.json', true);
+        xhr.setRequestHeader("Cache-Control", "max-age=30*24*3600");
+        xhr.send();
+      }
+      function cerca(k){
+        if (k=='')
+          return false;
+        result.innerHTML='Caricamento...';
+        k=comparable(k);
+        loadJSON(data=>{
+          result.innerHTML=header();
+          data.forEach(e => {
+            if(comparable(e[3]).includes(k)||comparable(e[4]).includes(k))
+              append(line(e));
+          });
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <input id="keyword" placeholder="Parole chiave" onkeypress="if(event.keyCode == 13)return cerca(document.getElementById('keyword').value)&&false"> <button onclick="cerca(document.getElementById('keyword').value)">Cerca</button>
+    <table id="result">
+      <script>document.write(header());</script>
+    </table>
+    <script>
+      result = document.getElementById('result');
+      window.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || 
+window.msIndexedDB;
+      if (window.indexedDB) {
+        var request = window.indexedDB.open('rel',1)
+        request.onupgradeneeded=e=>{
+          let db = e.target.result;
+          if(!db.objectStoreNames.contains('dump'))
+            db.createObjectStore('dump', {keyPath: 'id'});
+        };
+        request.onsuccess=e=>{
+          db= e.target.result;
+          db.transaction(['dump'],'readonly').objectStore('dump').get(1).onsuccess=e=>{
+            if(e.target.result==null)
+              loadJSON(data=>db.transaction(['dump'],'readwrite').objectStore('dump').add({id:1,array:data}));
+            else
+              json=e.target.result.array;
+          };
+        };
+      }
+    </script>
+    <p>Questo sito offre una semplice ricerca per le pagine archiviate in WayBackMachine e non avvalla minimamente i contenuti lì archiviati.</p>
+  </body>
+</html>
